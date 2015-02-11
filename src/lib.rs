@@ -11,3 +11,4 @@ extern crate core;
 extern crate std;
 
 mod buffer;
+pub mod typenat;
