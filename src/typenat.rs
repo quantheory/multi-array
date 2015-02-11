@@ -1,8 +1,11 @@
-/// Type-level natural numbers used to parameterize the array types.
-///
-/// The numbers provided are `N0`, `N1`, `N2`, ... `N32`. We only go up to 32
-/// because those are the array sizes for which important traits (e.g. `Debug`
-/// and `Clone`) are implemented.
+//! Type-level natural numbers used to parameterize the array types.
+//!
+//! The numbers provided are `N0`, `N1`, `N2`, ... `N32`. We only go up to 32
+//! because those are the array sizes for which important traits (e.g. `Debug`
+//! and `Clone`) are implemented.
+
+use core::fmt::Debug;
+use core::marker::Copy;
 
 /// Trait for type-level natural numbers.
 pub trait Nat {
@@ -11,8 +14,8 @@ pub trait Nat {
     /// We only provide an array type for `usize` because:
     ///  - That's all that's needed for this library.
     ///  - Without higher-kinded types, we would need a bit more complexity to
-    ///    connect a generic array `[T; S]` to the type-level number `NS`.
-    type USizeArray;
+    ///    connect a generic array `[T; D]` to the type-level number `ND`.
+    type USizeArray: Copy+Debug;
     /// The value that corresponds to this number.
     fn value() -> usize;
 }
@@ -26,11 +29,11 @@ pub trait PosNat: Nat {
     type Pre: Nat;
 }
 
-/// Type representing the number `0`.
-#[derive(Debug)]
+/// Type-level natural number representing `0`.
+#[derive(Copy, Debug)]
 pub struct N0;
 /// Type representing the successor of the wrapped type, e.g. `N1` is `Suc<N0>`.
-#[derive(Debug)]
+#[derive(Copy, Debug)]
 pub struct Suc<T: Nat>;
 
 impl Nat for N0 {
@@ -41,6 +44,7 @@ impl Nat for N0 {
 
 macro_rules! suc_nat_impl {
     ($(($pre: ty, $cur: ident, $n: expr)),+) => ( $(
+        /// Type-level natural number representing `$n`.
         pub type $cur = Suc<$pre>;
         impl Nat for $cur {
             type USizeArray = [usize; $n];
