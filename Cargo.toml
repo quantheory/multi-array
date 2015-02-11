@@ -1,0 +1,8 @@
+[package]
+
+name = "multi-array"
+version = "0.0.1"
+authors = ["Sean Patrick Santos <SeanPatrickSantos@gmail.com>"]
+description = "Multi-dimensional arrays for Rust."
+readme = "README.md"
+license = "Apache-2.0"
