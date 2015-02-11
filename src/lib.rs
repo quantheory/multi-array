@@ -11,6 +11,9 @@
 #![feature(unsafe_destructor)]
 #![no_std]
 
+#![crate_name(multi_array)]
+#![crate_type="lib"]
+
 #![warn(missing_copy_implementations, missing_debug_implementations)]
 #![warn(missing_docs, unused, variant_size_differences)]
 

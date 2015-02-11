@@ -1,5 +1,5 @@
-# `multi-array`
+# `multi_array`
 
-The `multi-array` library provides efficient multidimensional array types for
+The `multi_array` crate provides efficient multidimensional array types for
 Rust, intended to be useful for performance-sensitive, especially numerically
 intensive, applications.
