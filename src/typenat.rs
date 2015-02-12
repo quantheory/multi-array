@@ -6,25 +6,54 @@
 
 use core::fmt::Debug;
 use core::marker::Copy;
+use core::slice::SliceExt;
 
 /// Trait for type-level natural numbers.
-pub trait Nat {
+///
+/// The main use of this trait is to associate a type-level natural number with
+/// a value and successor (the latter via the `Suc` type below).
+///
+/// There is safe code that avoids bounds checks by relying on the `IxArray`
+/// type being indexable by the numbers `0` through `value()-1`, and on the
+/// `Suc` type being the successor value. This code would produce undefined
+/// behavior if a type implemented `Nat` in a way that violated these
+/// assumptions. Therefore it is unsafe to implement `Nat`.
+///
+/// There is no good reason to implement `Nat` outside of this module anyway.
+pub unsafe trait Nat {
     /// A `usize` array of the correct length (e.g. `[usize; 0]` for `N0`).
     ///
     /// We only provide an array type for `usize` because:
     ///  - That's all that's needed for this library.
     ///  - Without higher-kinded types, we would need a bit more complexity to
     ///    connect a generic array `[T; D]` to the type-level number `ND`.
-    type USizeArray: Copy+Debug;
+    type IxArray: Copy+Debug+USIndex;
     /// The value that corresponds to this number.
     fn value() -> usize;
+}
+
+/// Substitute that's present only to handle the fact that `[T; N]` doesn't yet
+/// implement `Index` or `IndexMut`.
+pub trait USIndex {
+    /// Take a `usize` index, and yield a reference to a `usize` stored in the
+    /// container.
+    fn us_index(&self, index: usize) -> &usize;
+    /// Take a `usize` index, and yield a reference to a mutable `usize` stored
+    /// in the container.
+    fn us_index_mut(&mut self, index: usize) -> &mut usize;
+    /// Same as us_index, but without bounds checking.
+    unsafe fn us_index_unchecked(&self, index: usize) -> &usize;
+    /// Same as us_index_mut, but without bounds checking.
+    unsafe fn us_index_unchecked_mut(&mut self, index: usize) -> &mut usize;
 }
 
 /// Trait for type-level positive numbers.
 ///
 /// The `Suc` type below allows one to increment by one. This type has the
 /// predecessor type as an associated type, i.e. it is used to decrement by one.
-pub trait PosNat: Nat {
+///
+/// This trait is unsafe to implement for the same reason as `Nat` is.
+pub unsafe trait PosNat: Nat {
     /// Predecessor of the Self type, e.g. `N0` is `<N1 as PosNat>::Pre`.
     type Pre: Nat;
 }
@@ -36,20 +65,58 @@ pub struct N0;
 #[derive(Copy, Debug)]
 pub struct Suc<T: Nat>;
 
-impl Nat for N0 {
-    type USizeArray = [usize; 0];
+unsafe impl Nat for N0 {
+    type IxArray = [usize; 0];
     #[inline]
     fn value() -> usize { 0 }
+}
+
+impl USIndex for [usize; 0] {
+    #[cold]
+    fn us_index(&self, _: usize) -> &usize {
+        panic!("Tried to index a size 0 array.")
+    }
+    #[cold]
+    fn us_index_mut(&mut self, _: usize) -> &mut usize {
+        panic!("Tried to index a size 0 array.")
+    }
+    #[inline]
+    unsafe fn us_index_unchecked(&self, index: usize) -> &usize {
+        self.get_unchecked(index)
+    }
+    #[inline]
+    unsafe fn us_index_unchecked_mut(&mut self, index: usize) -> &mut usize {
+        self.get_unchecked_mut(index)
+    }
 }
 
 macro_rules! suc_nat_impl {
     ($(($pre: ty, $cur: ident, $n: expr)),+) => ( $(
         /// Type-level natural number representing `$n`.
         pub type $cur = Suc<$pre>;
-        impl Nat for $cur {
-            type USizeArray = [usize; $n];
+        unsafe impl Nat for $cur {
+            type IxArray = [usize; $n];
             #[inline]
             fn value() -> usize { $n }
+        }
+        impl USIndex for [usize; $n] {
+            #[inline]
+            fn us_index(&self, index: usize) -> &usize {
+                &self[index]
+            }
+            #[inline]
+            fn us_index_mut(&mut self, index: usize) -> &mut usize {
+                &mut self[index]
+            }
+            #[inline]
+            unsafe fn us_index_unchecked(&self, index: usize) -> &usize {
+                self.get_unchecked(index)
+            }
+            #[inline]
+            unsafe fn us_index_unchecked_mut(&mut self, index: usize)
+                                             -> &mut usize {
+                self.get_unchecked_mut(index)
+            }
         }
         )*
     );
@@ -65,14 +132,14 @@ suc_nat_impl!(
  (N30, N31, 31), (N31, N32, 32)
 );
 
-impl<T: Nat> PosNat for Suc<T> where Suc<T>: Nat {
+unsafe impl<T: Nat> PosNat for Suc<T> where Suc<T>: Nat {
     type Pre = T;
 }
 
 
 /// Run four tests for each named Nat (three for N0 and N32):
 ///  1. The output of value() is correct.
-///  2. A variable of the appropriate size can be assigned to USizeArray.
+///  2. A variable of the appropriate size can be assigned to IxArray.
 ///  3. The predecessor has the correct value() output.
 ///  4. The successor has the correct value() output.
 #[cfg(test)]
@@ -85,7 +152,7 @@ mod tests {
     }
     #[test]
     fn n0_array_is_assignable() {
-        let _: <N0 as Nat>::USizeArray = [0us; 0];
+        let _: <N0 as Nat>::IxArray = [0us; 0];
     }
     #[test]
     fn n0_suc_value_is_1() {
@@ -98,7 +165,7 @@ mod tests {
     }
     #[test]
     fn n1_array_is_assignable() {
-        let _: <N1 as Nat>::USizeArray = [0us; 1];
+        let _: <N1 as Nat>::IxArray = [0us; 1];
     }
     #[test]
     fn n1_pre_value_is_0() {
@@ -115,7 +182,7 @@ mod tests {
     }
     #[test]
     fn n31_array_is_assignable() {
-        let _: <N31 as Nat>::USizeArray = [0us; 31];
+        let _: <N31 as Nat>::IxArray = [0us; 31];
     }
     #[test]
     fn n31_pre_value_is_30() {
@@ -132,7 +199,7 @@ mod tests {
     }
     #[test]
     fn n32_array_is_assignable() {
-        let _: <N32 as Nat>::USizeArray = [0us; 32];
+        let _: <N32 as Nat>::IxArray = [0us; 32];
     }
     #[test]
     fn n32_pre_value_is_30() {
